@@ -1,13 +1,14 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://safa-sahar-project.onrender.com/api",
+  baseURL:
+    import.meta.env.VITE_API_URL || "http://localhost:5000/api",
   headers: {
     "Content-Type": "application/json",
   },
 });
 
-// Attach JWT later (Phase 2) — placeholder for now
+// Attach JWT to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("token");
   if (token) {
