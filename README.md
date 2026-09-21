@@ -58,8 +58,15 @@ Built as a full-stack MERN application with a focus on real-world impact for Nep
 - MongoDB (local) or MongoDB Atlas account
 - Cloudinary account (free tier)
 
+---
+
 ### 1. Clone the repository
 
 git clone https://github.com/sushantrana1/Safa_Sahar_Project.git
 cd Safa_Sahar_Project
 
+--- 
+### 2. Backend setup
+
+cd backend
+npm install
