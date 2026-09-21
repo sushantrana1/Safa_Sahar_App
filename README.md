@@ -60,8 +60,6 @@ Built as a full-stack MERN application with a focus on real-world impact for Nep
 
 ### 1. Clone the repository
 
-```bash
 git clone https://github.com/sushantrana1/Safa_Sahar_Project.git
 cd Safa_Sahar_Project
 
-###
