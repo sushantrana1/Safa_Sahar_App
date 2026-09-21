@@ -9,7 +9,11 @@ const Reward = require("../models/Reward");
 const getStats = async (req, res) => {
   try {
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
 
     const [
       totalReports,
@@ -19,22 +23,25 @@ const getStats = async (req, res) => {
       rejectedReports,
       resolvedToday,
       totalCitizens,
+      totalAdmins,
       totalRewards,
       pendingRedemptions,
       deliveredRedemptions,
-      totalTransactions,
     ] = await Promise.all([
       Report.countDocuments({}),
       Report.countDocuments({ status: "pending" }),
       Report.countDocuments({ status: "in_progress" }),
       Report.countDocuments({ status: "resolved" }),
       Report.countDocuments({ status: "rejected" }),
-      Report.countDocuments({ status: "resolved", resolvedAt: { $gte: startOfToday } }),
+      Report.countDocuments({
+        status: "resolved",
+        resolvedAt: { $gte: startOfToday },
+      }),
       User.countDocuments({ role: "citizen" }),
+      User.countDocuments({ role: { $in: ["admin", "superadmin"] } }),
       Reward.countDocuments({ active: true }),
       Redemption.countDocuments({ status: "pending" }),
       Redemption.countDocuments({ status: "delivered" }),
-      Report.countDocuments({}), // placeholder, replaced below
     ]);
 
     // Reports per ward (top 10)
@@ -72,10 +79,11 @@ const getStats = async (req, res) => {
       { $sort: { "_id.y": 1, "_id.m": 1, "_id.d": 1 } },
     ]);
 
-    // Fill missing days with 0
     const trendMap = new Map();
     reportsTrend.forEach((r) => {
-      const key = `${r._id.y}-${String(r._id.m).padStart(2, "0")}-${String(r._id.d).padStart(2, "0")}`;
+      const key = `${r._id.y}-${String(r._id.m).padStart(2, "0")}-${String(
+        r._id.d
+      ).padStart(2, "0")}`;
       trendMap.set(key, r.count);
     });
 
@@ -83,7 +91,10 @@ const getStats = async (req, res) => {
     for (let i = 6; i >= 0; i--) {
       const d = new Date(now);
       d.setDate(now.getDate() - i);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+        2,
+        "0"
+      )}-${String(d.getDate()).padStart(2, "0")}`;
       last7Days.push({
         date: key,
         label: d.toLocaleDateString("en-US", { weekday: "short" }),
@@ -100,6 +111,7 @@ const getStats = async (req, res) => {
         rejectedReports,
         resolvedToday,
         totalCitizens,
+        totalAdmins,
         totalRewards,
         pendingRedemptions,
         deliveredRedemptions,
@@ -157,13 +169,15 @@ const listReports = async (req, res) => {
   }
 };
 
-// @desc    List all citizens (admin)
+// @desc    List all users — citizens + admins (admin)
 // @route   GET /api/admin/citizens
 // @access  Private/Admin
 const listCitizens = async (req, res) => {
   try {
-    const { search, page = 1, limit = 20 } = req.query;
-    const query = { role: "citizen" };
+    const { search, role, page = 1, limit = 100 } = req.query;
+
+    const query = {};
+    if (role) query.role = role;
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: "i" } },
@@ -175,7 +189,7 @@ const listCitizens = async (req, res) => {
 
     const [citizens, total] = await Promise.all([
       User.find(query)
-        .select("name email ward points phone createdAt")
+        .select("name email ward points phone role createdAt")
         .sort({ points: -1 })
         .skip(skip)
         .limit(Number(limit))
@@ -195,4 +209,57 @@ const listCitizens = async (req, res) => {
   }
 };
 
-module.exports = { getStats, listReports, listCitizens };
+// @desc    Promote or demote a user's role (admin only)
+// @route   PATCH /api/admin/citizens/:id/role
+// @access  Private/Admin
+const updateUserRole = async (req, res) => {
+  try {
+    const { role } = req.body;
+    const allowed = ["citizen", "admin"];
+
+    if (!allowed.includes(role)) {
+      return res.status(400).json({ message: "Invalid role" });
+    }
+
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Prevent self-demotion
+    if (
+      user._id.toString() === req.user._id.toString() &&
+      role !== "admin"
+    ) {
+      return res
+        .status(400)
+        .json({ message: "You cannot demote yourself" });
+    }
+
+    // Prevent demoting a superadmin
+    if (user.role === "superadmin") {
+      return res
+        .status(403)
+        .json({ message: "Cannot change superadmin role" });
+    }
+
+    user.role = role;
+    await user.save();
+
+    res.status(200).json({
+      message: `Role updated to ${role}`,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        ward: user.ward,
+      },
+    });
+  } catch (error) {
+    console.error("UPDATE USER ROLE ERROR:", error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = { getStats, listReports, listCitizens, updateUserRole };

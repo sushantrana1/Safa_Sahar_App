@@ -27,7 +27,6 @@ export default function Register() {
     name: "",
     email: "",
     password: "",
-    role: "citizen",
     ward: "",
     phone: "",
   });
@@ -89,7 +88,7 @@ export default function Register() {
 
   return (
     <div className="h-screen flex bg-slate-50">
-      {/* ============ Left: Brand Panel (desktop only, fixed height) ============ */}
+      {/* ============ Left: Brand Panel (desktop only) ============ */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary-600 via-primary-700 to-emerald-800">
         <div className="absolute -top-24 -left-24 w-96 h-96 rounded-full bg-primary-400/20 blur-3xl" />
         <div className="absolute bottom-0 -right-24 w-96 h-96 rounded-full bg-emerald-400/20 blur-3xl" />
@@ -141,7 +140,7 @@ export default function Register() {
         </div>
       </div>
 
-      {/* ============ Right: Form Panel (scrollable) ============ */}
+      {/* ============ Right: Form Panel ============ */}
       <div className="flex-1 h-screen overflow-y-auto">
         <div className="min-h-full flex items-center justify-center p-4 sm:p-8">
           <div className="w-full max-w-lg">
@@ -158,9 +157,7 @@ export default function Register() {
               </p>
             </div>
 
-            {/* Card / form panel */}
             <div className="bg-white lg:bg-transparent lg:shadow-none rounded-2xl lg:rounded-none shadow-lg lg:shadow-none border border-slate-100 lg:border-0 p-6 sm:p-8 lg:p-0">
-              {/* Header */}
               <div className="mb-6">
                 <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">
                   Create your account
@@ -257,69 +254,15 @@ export default function Register() {
                   />
                 </div>
 
-                {/* Role selector */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700">
-                    I am joining as
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      {
-                        value: "citizen",
-                        title: "Citizen",
-                        desc: "Report & earn",
-                        icon: UserIcon,
-                      },
-                      {
-                        value: "admin",
-                        title: "Admin",
-                        desc: "Ward staff",
-                        icon: ShieldCheck,
-                      },
-                    ].map((r) => {
-                      const Icon = r.icon;
-                      const active = form.role === r.value;
-                      return (
-                        <button
-                          key={r.value}
-                          type="button"
-                          onClick={() =>
-                            setForm((f) => ({ ...f, role: r.value }))
-                          }
-                          className={`relative text-left p-3 rounded-xl border-2 transition-all duration-200
-                            ${
-                              active
-                                ? "border-primary-500 bg-primary-50 shadow-sm"
-                                : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                            }`}
-                        >
-                          {active && (
-                            <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary-500 flex items-center justify-center">
-                              <Check className="w-3 h-3 text-white" />
-                            </div>
-                          )}
-                          <Icon
-                            className={`w-5 h-5 mb-1 ${
-                              active ? "text-primary-600" : "text-slate-500"
-                            }`}
-                          />
-                          <p
-                            className={`text-sm font-semibold ${
-                              active ? "text-primary-700" : "text-slate-800"
-                            }`}
-                          >
-                            {r.title}
-                          </p>
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {r.desc}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-primary-50 border border-primary-100">
+                  <ShieldCheck className="w-4 h-4 text-primary-600 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-primary-800 leading-relaxed">
+                    All new accounts are created as <strong>Citizens</strong>.
+                    To become an admin, a municipality representative will
+                    promote your account after verification.
+                  </p>
                 </div>
 
-                {/* Submit */}
                 <button
                   type="submit"
                   disabled={loading}
@@ -343,7 +286,6 @@ export default function Register() {
                 </button>
               </form>
 
-              {/* Divider */}
               <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
                   <div className="w-full border-t border-slate-200" />
@@ -355,7 +297,6 @@ export default function Register() {
                 </div>
               </div>
 
-              {/* Login CTA */}
               <Link
                 to="/login"
                 className="w-full flex items-center justify-center gap-2 border-2 border-slate-200 hover:border-primary-300 hover:bg-primary-50
@@ -366,7 +307,6 @@ export default function Register() {
                 <ArrowRight className="w-4 h-4" />
               </Link>
 
-              {/* Bottom padding so last content isn't glued to edge on scroll */}
               <div className="h-6 lg:h-8" />
             </div>
           </div>
@@ -376,12 +316,12 @@ export default function Register() {
   );
 }
 
-/* ---------------- Feature bullet ---------------- */
+/* ============ Feature bullet ============ */
 function Feature({ icon: Icon, title, desc }) {
   return (
     <div className="flex items-start gap-3">
       <div className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 flex items-center justify-center shrink-0">
-        <Icon className="w-4.5 h-4.5 text-primary-100" strokeWidth={2} />
+        <Icon className="w-4 h-4 text-primary-100" strokeWidth={2} />
       </div>
       <div>
         <p className="font-semibold text-sm text-white">{title}</p>
@@ -391,7 +331,7 @@ function Feature({ icon: Icon, title, desc }) {
   );
 }
 
-/* ---------------- Input field ---------------- */
+/* ============ Input field ============ */
 function Input({ label, icon: Icon, error, ...props }) {
   return (
     <div className="space-y-1.5">

@@ -6,21 +6,18 @@ const generateToken = require("../utils/generateToken");
 // @access  Public
 const register = async (req, res) => {
   try {
-    const { name, email, password, role, ward, phone } = req.body;
+    const { name, email, password, ward, phone } = req.body;
 
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(400).json({ message: "Email already registered" });
     }
 
-    // Only allow "citizen" or "admin" at signup. Superadmin is seeded manually.
-    const safeRole = ["citizen", "admin"].includes(role) ? role : "citizen";
-
     const user = await User.create({
       name,
       email,
       password,
-      role: safeRole,
+      role: "citizen",
       ward: ward || null,
       phone: phone || null,
     });

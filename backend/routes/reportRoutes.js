@@ -6,6 +6,8 @@ const {
   getMyReports,
   getReportById,
   updateReportStatus,
+  updateReport,
+  deleteReport,
 } = require("../controllers/reportController");
 const { protect, authorize } = require("../middleware/auth");
 const upload = require("../middleware/upload");
@@ -20,13 +22,13 @@ const validate = (req, res, next) => {
   next();
 };
 
-// Public feed (list)
+// ===== Public feed =====
 router.get("/", getReports);
 
-// Current user's reports (must be BEFORE /:id)
+// ===== Current user's reports (must be BEFORE /:id) =====
 router.get("/my", protect, getMyReports);
 
-// Create
+// ===== Create report =====
 router.post(
   "/",
   protect,
@@ -48,7 +50,7 @@ router.post(
   createReport
 );
 
-// Admin: update status
+// ===== Admin: update status =====
 router.patch(
   "/:id/status",
   protect,
@@ -58,7 +60,34 @@ router.patch(
   updateReportStatus
 );
 
-// Single report (must be LAST)
+// ===== Citizen: edit own report =====
+router.patch(
+  "/:id",
+  protect,
+  [
+    body("title")
+      .optional()
+      .trim()
+      .isLength({ min: 3, max: 100 })
+      .withMessage("Title must be 3-100 characters"),
+    body("description")
+      .optional()
+      .trim()
+      .isLength({ min: 10, max: 1000 })
+      .withMessage("Description must be 10-1000 characters"),
+    body("type")
+      .optional()
+      .isIn(["illegal_dumping", "missed_pickup", "overflowing_bin", "other"])
+      .withMessage("Invalid report type"),
+  ],
+  validate,
+  updateReport
+);
+
+// ===== Citizen: delete own report =====
+router.delete("/:id", protect, deleteReport);
+
+// ===== Public: get single report (must be LAST) =====
 router.get("/:id", getReportById);
 
 module.exports = router;

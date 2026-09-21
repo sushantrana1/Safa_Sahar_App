@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   MapPin,
@@ -21,6 +21,11 @@ import {
   Hash,
   Tag,
   TrendingUp,
+  Pencil,
+  Trash2,
+  Save,
+  X,
+  Lock,
 } from "lucide-react";
 import { MapContainer, TileLayer, Marker } from "react-leaflet";
 import toast from "react-hot-toast";
@@ -34,12 +39,7 @@ import {
 } from "../utils/reportHelpers";
 
 const ADMIN_STATUS_OPTIONS = [
-  {
-    value: "pending",
-    label: "Pending",
-    icon: Clock,
-    color: "yellow",
-  },
+  { value: "pending", label: "Pending", icon: Clock, color: "yellow" },
   {
     value: "in_progress",
     label: "In Progress",
@@ -52,23 +52,33 @@ const ADMIN_STATUS_OPTIONS = [
     icon: CheckCircle2,
     color: "primary",
   },
-  {
-    value: "rejected",
-    label: "Rejected",
-    icon: XCircle,
-    color: "red",
-  },
+  { value: "rejected", label: "Rejected", icon: XCircle, color: "red" },
 ];
 
 export default function ReportDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
+
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState(null);
 
+  // Edit mode state
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: "",
+    description: "",
+    type: "",
+    address: "",
+  });
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isOwner = !!(user?._id && report?.user?._id === user._id);
+  const canEdit = isOwner && !isAdmin && report?.status === "pending";
 
   const fetchReport = async () => {
     try {
@@ -109,6 +119,68 @@ export default function ReportDetail() {
       toast.success("Link copied to clipboard");
     } catch {
       toast.error("Could not copy link");
+    }
+  };
+
+  const startEditing = () => {
+    setEditForm({
+      title: report.title,
+      description: report.description,
+      type: report.type,
+      address: report.address || "",
+    });
+    setEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setEditing(false);
+  };
+
+  const saveEdit = async () => {
+    if (!editForm.title.trim() || editForm.title.trim().length < 3) {
+      return toast.error("Title must be at least 3 characters");
+    }
+    if (
+      !editForm.description.trim() ||
+      editForm.description.trim().length < 10
+    ) {
+      return toast.error("Description must be at least 10 characters");
+    }
+
+    setSaving(true);
+    try {
+      const { data } = await api.patch(`/reports/${id}`, {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        type: editForm.type,
+        address: editForm.address.trim(),
+      });
+      setReport(data.report);
+      setEditing(false);
+      toast.success("Report updated");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Update failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (
+      !confirm(
+        "Delete this report? This cannot be undone. Points earned from it will remain."
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await api.delete(`/reports/${id}`);
+      toast.success("Report deleted");
+      navigate("/my-reports");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Delete failed");
+      setDeleting(false);
     }
   };
 
@@ -228,6 +300,48 @@ export default function ReportDetail() {
           </div>
 
           <div className="flex items-center gap-1 shrink-0">
+            {/* Owner-only edit/delete (only while pending) */}
+            {canEdit && !editing && (
+              <>
+                <button
+                  onClick={startEditing}
+                  className="p-2 rounded-lg text-slate-600 hover:text-primary-700 hover:bg-primary-50 active:bg-primary-100 transition
+                             focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1"
+                  title="Edit report"
+                  aria-label="Edit report"
+                >
+                  <Pencil className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="p-2 rounded-lg text-slate-600 hover:text-red-600 hover:bg-red-50 active:bg-red-100 transition
+                             disabled:opacity-50 disabled:cursor-not-allowed
+                             focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1"
+                  title="Delete report"
+                  aria-label="Delete report"
+                >
+                  {deleting ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-5 h-5" />
+                  )}
+                </button>
+              </>
+            )}
+
+            {editing && (
+              <button
+                onClick={cancelEditing}
+                className="p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition
+                           focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1"
+                title="Cancel editing"
+                aria-label="Cancel editing"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            )}
+
             <button
               onClick={handleShare}
               className="p-2 rounded-lg text-slate-600 hover:text-primary-700 hover:bg-primary-50 active:bg-primary-100 transition
@@ -244,7 +358,7 @@ export default function ReportDetail() {
       </header>
 
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4">
-        {/* ============ Hero Image — smaller on laptop ============ */}
+        {/* ============ Hero Image ============ */}
         <div className="relative rounded-2xl overflow-hidden shadow-sm border border-slate-100 bg-white max-w-2xl mx-auto">
           <div className="h-52 sm:h-64 md:h-72 lg:h-60 bg-slate-100">
             <img
@@ -255,7 +369,6 @@ export default function ReportDetail() {
             />
           </div>
 
-          {/* Status chip overlay */}
           <div className="absolute top-3 left-3 flex items-center gap-2 flex-wrap">
             <span
               className={`text-[11px] font-bold uppercase tracking-wide rounded-full px-3 py-1.5 flex items-center gap-1.5 border shadow-sm backdrop-blur-sm bg-white/95 ${meta.chipCls}`}
@@ -269,7 +382,6 @@ export default function ReportDetail() {
             </span>
           </div>
 
-          {/* Time chip overlay */}
           <div className="absolute top-3 right-3">
             <span className="text-[10px] font-semibold bg-black/50 backdrop-blur-sm text-white rounded-full px-2.5 py-1 flex items-center gap-1">
               <Clock className="w-3 h-3" />
@@ -281,73 +393,217 @@ export default function ReportDetail() {
         {/* ============ Main Info Card ============ */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="p-5 sm:p-6 space-y-5">
-            {/* Title */}
-            <div>
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
-                {report.title}
-              </h2>
+            {!editing ? (
+              <>
+                {/* READ MODE */}
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-slate-900 leading-tight">
+                    {report.title}
+                  </h2>
+                  <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
+                    <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center font-bold text-[10px] text-primary-700 shrink-0">
+                      {(report.user?.name || "A").charAt(0).toUpperCase()}
+                    </div>
+                    <span className="truncate">
+                      Reported by{" "}
+                      <span className="font-semibold text-slate-700">
+                        {report.user?.name || "Anonymous"}
+                      </span>
+                      {report.user?.ward && ` · Ward ${report.user.ward}`}
+                    </span>
+                  </div>
+                </div>
 
-              {/* Author row */}
-              <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
-                <div className="w-6 h-6 rounded-full bg-primary-100 flex items-center justify-center font-bold text-[10px] text-primary-700 shrink-0">
-                  {(report.user?.name || "A").charAt(0).toUpperCase()}
-                </div>
-                <span className="truncate">
-                  Reported by{" "}
-                  <span className="font-semibold text-slate-700">
-                    {report.user?.name || "Anonymous"}
-                  </span>
-                  {report.user?.ward && ` · Ward ${report.user.ward}`}
-                </span>
-              </div>
-            </div>
+                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                  {report.description}
+                </p>
 
-            {/* Description */}
-            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
-              {report.description}
-            </p>
+                <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100">
+                  <div className="text-center">
+                    <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-primary-50 mb-1.5">
+                      <Coins className="w-4 h-4 text-primary-600" />
+                    </div>
+                    <p className="text-lg font-bold text-slate-900 tabular-nums leading-none">
+                      {report.pointsAwarded}
+                    </p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide font-medium mt-1">
+                      Points
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100 mb-1.5">
+                      <Hash className="w-4 h-4 text-slate-600" />
+                    </div>
+                    <p className="text-lg font-bold text-slate-900 tabular-nums leading-none">
+                      {report.ward ?? "—"}
+                    </p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide font-medium mt-1">
+                      Ward
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-blue-50 mb-1.5">
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <p className="text-lg font-bold text-slate-900 tabular-nums leading-none">
+                      {new Date(report.createdAt).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </p>
+                    <p className="text-[10px] text-slate-500 uppercase tracking-wide font-medium mt-1">
+                      Date
+                    </p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* EDIT MODE */}
+                <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+                  <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
+                    <Pencil className="w-4 h-4 text-primary-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Edit report
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      You can only edit while the report is pending
+                    </p>
+                  </div>
+                </div>
 
-            {/* Stats grid */}
-            <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100">
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-primary-50 mb-1.5">
-                  <Coins className="w-4 h-4 text-primary-600" />
+                <div>
+                  <label className="flex items-center justify-between text-sm font-medium text-slate-700 mb-1.5">
+                    <span>Title</span>
+                    <span className="text-[11px] text-slate-400 tabular-nums">
+                      {editForm.title.length}/100
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.title}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, title: e.target.value }))
+                    }
+                    maxLength={100}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition
+                               focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  />
                 </div>
-                <p className="text-lg font-bold text-slate-900 tabular-nums leading-none">
-                  {report.pointsAwarded}
-                </p>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide font-medium mt-1">
-                  Points
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-slate-100 mb-1.5">
-                  <Hash className="w-4 h-4 text-slate-600" />
+
+                <div>
+                  <label className="flex items-center justify-between text-sm font-medium text-slate-700 mb-1.5">
+                    <span>Description</span>
+                    <span className="text-[11px] text-slate-400 tabular-nums">
+                      {editForm.description.length}/1000
+                    </span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={editForm.description}
+                    onChange={(e) =>
+                      setEditForm((f) => ({
+                        ...f,
+                        description: e.target.value,
+                      }))
+                    }
+                    maxLength={1000}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition
+                               focus:border-primary-500 focus:ring-2 focus:ring-primary-100 resize-none"
+                  />
                 </div>
-                <p className="text-lg font-bold text-slate-900 tabular-nums leading-none">
-                  {report.ward ?? "—"}
-                </p>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide font-medium mt-1">
-                  Ward
-                </p>
-              </div>
-              <div className="text-center">
-                <div className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-blue-50 mb-1.5">
-                  <Calendar className="w-4 h-4 text-blue-600" />
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Type
+                  </label>
+                  <select
+                    value={editForm.type}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, type: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition
+                               focus:border-primary-500 focus:ring-2 focus:ring-primary-100 bg-white"
+                  >
+                    {Object.entries(TYPE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <p className="text-lg font-bold text-slate-900 tabular-nums leading-none">
-                  {new Date(report.createdAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </p>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wide font-medium mt-1">
-                  Date
-                </p>
-              </div>
-            </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Landmark / Address{" "}
+                    <span className="text-slate-400 font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.address}
+                    onChange={(e) =>
+                      setEditForm((f) => ({ ...f, address: e.target.value }))
+                    }
+                    placeholder="e.g. Ratna Park, Kathmandu"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm outline-none transition
+                               focus:border-primary-500 focus:ring-2 focus:ring-primary-100"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={cancelEditing}
+                    disabled={saving}
+                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl py-2.5 transition
+                               disabled:opacity-60"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEdit}
+                    disabled={saving}
+                    className="flex-1 bg-primary-600 hover:bg-primary-700 text-white font-semibold rounded-xl py-2.5 transition
+                               disabled:opacity-60 disabled:cursor-not-allowed
+                               flex items-center justify-center gap-2
+                               shadow-md shadow-primary-500/20"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save changes
+                      </>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
+
+        {/* ============ Locked notice ============ */}
+        {isOwner && !isAdmin && report.status !== "pending" && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-start gap-2">
+            <Lock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-amber-900">
+                This report is locked
+              </p>
+              <p className="text-[11px] text-amber-800 mt-0.5">
+                Once a report is under review or resolved, it can no longer be
+                edited or deleted. Contact your ward office if there's an issue.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* ============ Location Card ============ */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
@@ -359,7 +615,9 @@ export default function ReportDetail() {
               <h3 className="text-sm font-bold text-slate-900">Location</h3>
               <p className="text-xs text-slate-500 truncate">
                 {report.address ||
-                  `${report.location.lat.toFixed(4)}, ${report.location.lng.toFixed(4)}`}
+                  `${report.location.lat.toFixed(
+                    4
+                  )}, ${report.location.lng.toFixed(4)}`}
               </p>
             </div>
             <a
@@ -374,7 +632,6 @@ export default function ReportDetail() {
             </a>
           </div>
 
-          {/* Map preview */}
           <div className="h-44 sm:h-56 bg-slate-100">
             <MapContainer
               center={[report.location.lat, report.location.lng]}
@@ -390,7 +647,6 @@ export default function ReportDetail() {
             </MapContainer>
           </div>
 
-          {/* Coordinates */}
           <div className="grid grid-cols-2 divide-x divide-slate-100 border-t border-slate-100">
             <div className="px-4 py-2.5 text-center">
               <p className="text-[10px] text-slate-500 uppercase tracking-wide font-semibold">
@@ -428,7 +684,6 @@ export default function ReportDetail() {
           </div>
 
           <div className="relative">
-            {/* Vertical line */}
             <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-slate-100" />
 
             <div className="space-y-5">
@@ -438,7 +693,6 @@ export default function ReportDetail() {
 
                 return (
                   <div key={i} className="relative flex gap-4">
-                    {/* Node */}
                     <div
                       className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 transition ${
                         isActive
@@ -449,7 +703,6 @@ export default function ReportDetail() {
                       <Icon className="w-4 h-4" />
                     </div>
 
-                    {/* Content */}
                     <div className="flex-1 pt-0.5 pb-1">
                       <div className="flex items-baseline gap-2 flex-wrap">
                         <p
@@ -543,48 +796,50 @@ export default function ReportDetail() {
           </div>
         )}
 
-        {/* ============ Bottom nav strip ============ */}
-        <div className="grid grid-cols-2 gap-2">
-          <Link
-            to="/my-reports"
-            className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-slate-100 p-4 hover:bg-slate-50 active:bg-slate-100 transition"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
-                <UserIcon className="w-4 h-4 text-primary-600" />
+        {/* ============ Bottom nav strip (citizens only) ============ */}
+        {!isAdmin && (
+          <div className="grid grid-cols-2 gap-2">
+            <Link
+              to="/my-reports"
+              className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-slate-100 p-4 hover:bg-slate-50 active:bg-slate-100 transition"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-primary-50 flex items-center justify-center shrink-0">
+                  <UserIcon className="w-4 h-4 text-primary-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 truncate">
+                    My Reports
+                  </p>
+                  <p className="text-[10px] text-slate-500 truncate">
+                    View all yours
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-900 truncate">
-                  My Reports
-                </p>
-                <p className="text-[10px] text-slate-500 truncate">
-                  View all yours
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-          </Link>
+              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+            </Link>
 
-          <Link
-            to="/reports/new"
-            className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-slate-100 p-4 hover:bg-slate-50 active:bg-slate-100 transition"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-lg bg-yellow-50 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4 h-4 text-yellow-600" />
+            <Link
+              to="/reports/new"
+              className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-slate-100 p-4 hover:bg-slate-50 active:bg-slate-100 transition"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-yellow-50 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-4 h-4 text-yellow-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-slate-900 truncate">
+                    New Report
+                  </p>
+                  <p className="text-[10px] text-slate-500 truncate">
+                    Earn +10 points
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-900 truncate">
-                  New Report
-                </p>
-                <p className="text-[10px] text-slate-500 truncate">
-                  Earn +10 points
-                </p>
-              </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
-          </Link>
-        </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ const {
   getStats,
   listReports,
   listCitizens,
+  updateUserRole,
 } = require("../controllers/adminController");
 const { protect, authorize } = require("../middleware/auth");
 
@@ -13,5 +14,6 @@ router.use(protect, authorize("admin", "superadmin"));
 router.get("/stats", getStats);
 router.get("/reports", listReports);
 router.get("/citizens", listCitizens);
+router.patch("/citizens/:id/role", updateUserRole);
 
 module.exports = router;
