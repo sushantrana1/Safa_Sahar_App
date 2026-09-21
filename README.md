@@ -86,6 +86,69 @@ Built as a full-stack MERN application with a focus on real-world impact for Nep
 
 ### 3. Frontend setup
 
--cd ../frontend
+- cd ../frontend
 - npm install
 - npm run dev
+
+---
+
+### 🔑 Creating the First Admin
+
+- Public registration creates citizens only. To bootstrap the first admin:
+- Register a citizen account via the app
+- Open MongoDB Atlas (or Compass) → safa_sahar → users
+- Find your user document → change role: "citizen" → role: "admin"
+- Log out and log back in
+- All subsequent admins are promoted by existing admins from the Citizens page.
+
+---
+
+### 📁 Project Structure
+
+Safa_Sahar_Project/
+├── frontend/                  # React + Vite + Tailwind
+│   ├── src/
+│   │   ├── api/              # Axios instance
+│   │   ├── components/       # Reusable UI components
+│   │   ├── context/          # AuthContext
+│   │   ├── pages/            # Route pages
+│   │   │   └── admin/        # Admin-only pages
+│   │   └── utils/            # Helpers
+│   ├── .env.development
+│   ├── .env.production
+│   └── vercel.json
+│
+└── backend/                   # Express + MongoDB
+    ├── config/               # DB, Cloudinary, Env
+    ├── controllers/          # Business logic
+    ├── middleware/           # Auth, Upload, Error handler
+    ├── models/               # Mongoose schemas
+    ├── routes/               # API routes
+    ├── scripts/              # Seed scripts
+    ├── utils/                # Helpers (ledger, tokens)
+    └── server.js
+
+---
+
+### 🎯 How Points Work
+
+- Citizen submits a report → no points yet
+- Admin reviews and marks it Resolved → +10 points awarded
+- Every point change is logged as a Transaction with the balance before and after
+- Citizens can redeem points from the Rewards Store
+- Cancelled redemptions automatically refund points
+- This prevents spam — you can't farm points by submitting junk reports.
+
+---
+
+### 🐛 Known Limitations
+
+- Render cold start: Free tier spins down after 15 minutes of inactivity; first request takes ~30s
+- Preview URLs: Only the production Vercel URL is whitelisted for CORS
+- File size: Image uploads capped at 5MB
+- Rate limits: 10 reports/hour per user, 5 registrations/hour per IP
+
+---
+
+### 📄 License
+** MIT — feel free to fork and adapt for your city.
