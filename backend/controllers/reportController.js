@@ -1,7 +1,11 @@
 const Report = require("../models/Report");
+const User = require("../models/User");
 const { addPoints } = require("../utils/ledger");
 
 const POINTS_PER_REPORT = 10;
+
+// Escape special regex chars to prevent ReDoS
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 // @desc    Create new report
 // @route   POST /api/reports
@@ -21,20 +25,14 @@ const createReport = async (req, res) => {
 
     const report = await Report.create({
       user: req.user._id,
-      title,
-      description,
+      title: title.trim(),
+      description: description.trim(),
       type,
       imageUrl,
       location: { lat: Number(lat), lng: Number(lng) },
-      address: address || "",
+      address: (address || "").trim(),
       ward: ward ? Number(ward) : req.user.ward || null,
-      pointsAwarded: POINTS_PER_REPORT,
-    });
-
-    await addPoints(req.user._id, POINTS_PER_REPORT, {
-      type: "earned_report",
-      description: `Report submitted: ${title}`,
-      report: report._id,
+      pointsAwarded: 0,
     });
 
     res.status(201).json({ report });
@@ -55,22 +53,28 @@ const getReports = async (req, res) => {
     if (status) query.status = status;
     if (type) query.type = type;
     if (ward) query.ward = Number(ward);
+
     if (search) {
+      if (search.length > 100) {
+        return res.status(400).json({ message: "Search query too long" });
+      }
+      const safeSearch = escapeRegex(search);
       query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-        { address: { $regex: search, $options: "i" } },
+        { title: { $regex: safeSearch, $options: "i" } },
+        { description: { $regex: safeSearch, $options: "i" } },
+        { address: { $regex: safeSearch, $options: "i" } },
       ];
     }
 
     const skip = (Number(page) - 1) * Number(limit);
+    const safeLimit = Math.min(Number(limit), 100); // cap at 100
 
     const [reports, total] = await Promise.all([
       Report.find(query)
         .populate("user", "name ward avatarUrl")
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(Number(limit))
+        .limit(safeLimit)
         .lean(),
       Report.countDocuments(query),
     ]);
@@ -79,7 +83,7 @@ const getReports = async (req, res) => {
       count: reports.length,
       total,
       page: Number(page),
-      pages: Math.ceil(total / Number(limit)),
+      pages: Math.ceil(total / safeLimit),
       reports,
     });
   } catch (error) {
@@ -138,11 +142,26 @@ const updateReportStatus = async (req, res) => {
       return res.status(404).json({ message: "Report not found" });
     }
 
+    const previousStatus = report.status;
     report.status = status;
     if (status === "resolved") {
       report.resolvedAt = new Date();
     } else {
       report.resolvedAt = null;
+    }
+
+    // Award points on first transition to "resolved"
+    if (
+      status === "resolved" &&
+      previousStatus !== "resolved" &&
+      !report.pointsAwarded
+    ) {
+      await addPoints(report.user, POINTS_PER_REPORT, {
+        type: "earned_report",
+        description: `Report resolved: ${report.title}`,
+        report: report._id,
+      });
+      report.pointsAwarded = POINTS_PER_REPORT;
     }
 
     await report.save();
@@ -166,14 +185,12 @@ const updateReport = async (req, res) => {
       return res.status(404).json({ message: "Report not found" });
     }
 
-    // Only the owner can edit
     if (report.user.toString() !== req.user._id.toString()) {
       return res
         .status(403)
         .json({ message: "You can only edit your own reports" });
     }
 
-    // Only allow edits while pending
     if (report.status !== "pending") {
       return res.status(400).json({
         message:
@@ -210,14 +227,12 @@ const deleteReport = async (req, res) => {
       return res.status(404).json({ message: "Report not found" });
     }
 
-    // Only the owner can delete
     if (report.user.toString() !== req.user._id.toString()) {
       return res
         .status(403)
         .json({ message: "You can only delete your own reports" });
     }
 
-    // Only allow deletion while pending
     if (report.status !== "pending") {
       return res.status(400).json({
         message:

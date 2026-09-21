@@ -8,6 +8,7 @@ const hpp = require("hpp");
 const compression = require("compression");
 const morgan = require("morgan");
 const connectDB = require("./config/db");
+
 const authRoutes = require("./routes/authRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const userRoutes = require("./routes/userRoutes");
@@ -21,7 +22,22 @@ connectDB();
 
 const app = express();
 
-// Security
+// Trust Render's proxy so req.protocol / x-forwarded-proto is accurate
+app.set("trust proxy", 1);
+
+// HTTPS enforcement in production
+app.use((req, res, next) => {
+  if (
+    process.env.NODE_ENV === "production" &&
+    req.headers["x-forwarded-proto"] &&
+    req.headers["x-forwarded-proto"] !== "https"
+  ) {
+    return res.redirect(301, `https://${req.headers.host}${req.url}`);
+  }
+  next();
+});
+
+// Security headers
 app.use(helmet({ crossOriginResourcePolicy: false }));
 
 // Body parsers
@@ -39,9 +55,14 @@ if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
 
-// CORS
-const allowedOrigins = ["http://localhost:5173", "http://localhost:5174"];
-if (process.env.FRONTEND_URL) allowedOrigins.push(process.env.FRONTEND_URL);
+// CORS — allow localhost only in development
+const allowedOrigins = [];
+if (process.env.NODE_ENV === "development") {
+  allowedOrigins.push("http://localhost:5173", "http://localhost:5174");
+}
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
 
 app.use(
   cors({
@@ -63,15 +84,8 @@ const limiter = rateLimit({
 });
 app.use("/api", limiter);
 
-// Stricter limit for auth
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: { message: "Too many login attempts. Try again in 15 minutes." },
-});
-
 // Routes
-app.use("/api/auth", authLimiter, authRoutes);
+app.use("/api/auth", authRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
@@ -93,7 +107,7 @@ app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-// Global error handler (LAST)
+// Global error handler
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;

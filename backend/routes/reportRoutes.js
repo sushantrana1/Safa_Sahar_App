@@ -1,4 +1,5 @@
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const { body, validationResult } = require("express-validator");
 const {
   createReport,
@@ -22,16 +23,29 @@ const validate = (req, res, next) => {
   next();
 };
 
+// Per-user limit: 10 reports per hour
+const reportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  message: {
+    message: "Too many reports. Please try again in an hour.",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user?._id?.toString() || req.ip,
+});
+
 // ===== Public feed =====
 router.get("/", getReports);
 
-// ===== Current user's reports (must be BEFORE /:id) =====
+// ===== Current user's reports =====
 router.get("/my", protect, getMyReports);
 
-// ===== Create report =====
+// ===== Create report (rate-limited) =====
 router.post(
   "/",
   protect,
+  reportLimiter,
   upload.single("image"),
   [
     body("title")
