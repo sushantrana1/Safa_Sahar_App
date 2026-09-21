@@ -33,28 +33,24 @@ const REPORT_TYPES = [
     label: "Illegal Dumping",
     desc: "Garbage dumped in public space",
     emoji: "🗑️",
-    color: "red",
   },
   {
     value: "missed_pickup",
     label: "Missed Pickup",
     desc: "Waste collection not done",
     emoji: "🚛",
-    color: "orange",
   },
   {
     value: "overflowing_bin",
     label: "Overflowing Bin",
     desc: "Public bin is full or broken",
     emoji: "📦",
-    color: "yellow",
   },
   {
     value: "other",
     label: "Other",
     desc: "Something else needs attention",
     emoji: "📋",
-    color: "slate",
   },
 ];
 
@@ -63,8 +59,11 @@ const MAX_DESC = 1000;
 
 export default function CreateReport() {
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
   const { user } = useAuth();
+
+  // Two separate refs — one for gallery (file picker), one for camera
+  const galleryInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -94,6 +93,7 @@ export default function CreateReport() {
   const progressPct = (completedSteps / 4) * 100;
   const canSubmit = completedSteps === 4 && !loading;
 
+  // ============ Image handling ============
   const processFile = (file) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -108,7 +108,8 @@ export default function CreateReport() {
     setPreview(URL.createObjectURL(file));
   };
 
-  const handleImage = (e) => processFile(e.target.files?.[0]);
+  const handleGalleryChange = (e) => processFile(e.target.files?.[0]);
+  const handleCameraChange = (e) => processFile(e.target.files?.[0]);
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -119,9 +120,11 @@ export default function CreateReport() {
   const removeImage = () => {
     setImage(null);
     setPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (galleryInputRef.current) galleryInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
+  // ============ Location ============
   const detectLocation = () => {
     if (!navigator.geolocation) {
       toast.error("Geolocation not supported");
@@ -155,6 +158,7 @@ export default function CreateReport() {
     setForm((f) => ({ ...f, [name]: value }));
   };
 
+  // ============ Submit ============
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validation.image) return toast.error("Please upload a photo");
@@ -179,7 +183,7 @@ export default function CreateReport() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      toast.success("Report submitted! +10 points earned");
+      toast.success("Report submitted! Points awarded after verification.");
       navigate("/my-reports");
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to submit report");
@@ -228,9 +232,8 @@ export default function CreateReport() {
         </div>
       </header>
 
-      {/* ============ Content wrapper ============ */}
       <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4">
-        {/* Progress Bar */}
+        {/* ============ Progress Bar ============ */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-3 sm:p-4">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2 min-w-0">
@@ -277,7 +280,7 @@ export default function CreateReport() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* 1. Photo Upload */}
+          {/* ============ 1. Photo Upload ============ */}
           <Section
             number={1}
             title="Photo evidence"
@@ -286,46 +289,91 @@ export default function CreateReport() {
             icon={Camera}
           >
             {!preview ? (
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragging(true);
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                /* ⬇️ CHANGED: responsive height — smaller on laptop */
-                className={`w-full rounded-xl border-2 border-dashed transition cursor-pointer flex flex-col items-center justify-center gap-2 p-4 text-center
-                  h-48 sm:h-56 md:h-64 max-w-md mx-auto
-                  ${
-                    dragging
-                      ? "border-primary-500 bg-primary-50"
-                      : "border-slate-300 hover:border-primary-400 hover:bg-primary-50/40"
-                  }`}
-              >
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-100 to-primary-50 flex items-center justify-center mb-1">
-                  <Camera className="w-6 h-6 text-primary-600" />
+              <div className="space-y-3">
+                {/* Desktop: drag-and-drop zone */}
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragging(true);
+                  }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={handleDrop}
+                  onClick={() => galleryInputRef.current?.click()}
+                  className={`hidden sm:flex flex-col items-center justify-center gap-2 p-6 rounded-xl border-2 border-dashed transition cursor-pointer text-center
+                    ${
+                      dragging
+                        ? "border-primary-500 bg-primary-50"
+                        : "border-slate-300 hover:border-primary-400 hover:bg-primary-50/40"
+                    }`}
+                >
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-100 to-primary-50 flex items-center justify-center">
+                    <Camera className="w-6 h-6 text-primary-600" />
+                  </div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    Drop image here or click to browse
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    JPG, PNG, WEBP · max 5MB
+                  </p>
                 </div>
-                <p className="text-sm font-semibold text-slate-800">
-                  Tap to upload or drag & drop
-                </p>
-                <p className="text-xs text-slate-500">
-                  JPG, PNG, WEBP · max 5MB
-                </p>
 
-                <div className="mt-2 flex flex-wrap justify-center gap-2">
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide bg-primary-50 text-primary-700 border border-primary-100 rounded-full px-2.5 py-1">
-                    <Upload className="w-3 h-3" />
-                    Upload
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200 rounded-full px-2.5 py-1">
-                    <Camera className="w-3 h-3" />
-                    Camera
-                  </span>
+                {/* Both buttons — camera + gallery */}
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Take photo → camera */}
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-primary-200 bg-primary-50/50 hover:bg-primary-50 hover:border-primary-300 active:scale-[0.98] transition
+                               focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center">
+                      <Camera className="w-5 h-5 text-primary-700" />
+                    </div>
+                    <span className="text-xs sm:text-sm font-semibold text-primary-800">
+                      Take photo
+                    </span>
+                    <span className="text-[10px] text-primary-600 text-center leading-tight">
+                      Opens camera
+                    </span>
+                  </button>
+
+                  {/* Choose from gallery → file picker */}
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98] transition
+                               focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
+                      <ImageIcon className="w-5 h-5 text-slate-700" />
+                    </div>
+                    <span className="text-xs sm:text-sm font-semibold text-slate-800">
+                      Choose from gallery
+                    </span>
+                    <span className="text-[10px] text-slate-500 text-center leading-tight">
+                      Browse files
+                    </span>
+                  </button>
                 </div>
+
+                {/* Hidden inputs — one for gallery, one for camera */}
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleGalleryChange}
+                  className="hidden"
+                />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleCameraChange}
+                  className="hidden"
+                />
               </div>
             ) : (
-              /* ⬇️ CHANGED: responsive height — smaller on laptop */
               <div className="relative rounded-xl overflow-hidden bg-slate-100 h-48 sm:h-56 md:h-64 max-w-md mx-auto">
                 <img
                   src={preview}
@@ -341,7 +389,7 @@ export default function CreateReport() {
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => galleryInputRef.current?.click()}
                       className="text-xs font-semibold bg-white/20 hover:bg-white/30 backdrop-blur-sm border border-white/20 text-white rounded-lg px-3 py-1.5 transition flex items-center gap-1.5"
                     >
                       <Upload className="w-3 h-3" />
@@ -351,7 +399,7 @@ export default function CreateReport() {
                       type="button"
                       onClick={removeImage}
                       className="text-xs font-semibold bg-red-500/80 hover:bg-red-600 backdrop-blur-sm text-white rounded-lg px-2.5 py-1.5 transition flex items-center gap-1.5"
-                      aria-label="Remove"
+                      aria-label="Remove image"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -359,18 +407,9 @@ export default function CreateReport() {
                 </div>
               </div>
             )}
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleImage}
-              className="hidden"
-            />
           </Section>
 
-          {/* 2. Details */}
+          {/* ============ 2. Details ============ */}
           <Section
             number={2}
             title="Details"
@@ -385,13 +424,7 @@ export default function CreateReport() {
                     <FileText className="w-3.5 h-3.5 text-primary-600" />
                     Title
                   </span>
-                  <span
-                    className={`text-[11px] tabular-nums ${
-                      form.title.length > MAX_TITLE
-                        ? "text-red-500"
-                        : "text-slate-400"
-                    }`}
-                  >
+                  <span className="text-[11px] tabular-nums text-slate-400">
                     {form.title.length}/{MAX_TITLE}
                   </span>
                 </label>
@@ -409,13 +442,7 @@ export default function CreateReport() {
               <div>
                 <label className="flex items-center justify-between text-sm font-medium text-slate-700 mb-1.5">
                   <span>Description</span>
-                  <span
-                    className={`text-[11px] tabular-nums ${
-                      form.description.length > MAX_DESC
-                        ? "text-red-500"
-                        : "text-slate-400"
-                    }`}
-                  >
+                  <span className="text-[11px] tabular-nums text-slate-400">
                     {form.description.length}/{MAX_DESC}
                   </span>
                 </label>
@@ -479,7 +506,7 @@ export default function CreateReport() {
             </div>
           </Section>
 
-          {/* 3. Location */}
+          {/* ============ 3. Location ============ */}
           <Section
             number={3}
             title="Location"
@@ -560,7 +587,7 @@ export default function CreateReport() {
             </div>
           </Section>
 
-          {/* 4. Preview */}
+          {/* ============ 4. Preview ============ */}
           {completedSteps >= 3 && (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 sm:p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -617,7 +644,7 @@ export default function CreateReport() {
             </div>
           )}
 
-          {/* Submit */}
+          {/* ============ Submit ============ */}
           <div className="sticky bottom-3 sm:bottom-4 pt-2">
             <button
               type="submit"
@@ -638,7 +665,7 @@ export default function CreateReport() {
               ) : canSubmit ? (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  Submit report · +10 points
+                  Submit report
                 </>
               ) : (
                 <>
