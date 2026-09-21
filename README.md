@@ -510,31 +510,6 @@ Potential future improvements include:
 
 ---
 
-# 📸 Screenshots
-
-> Add screenshots of the main application pages here to make the repository easier to understand at a glance.
-
-Suggested screenshots:
-
-* Landing page
-* Citizen dashboard
-* Report waste page
-* Interactive map
-* Rewards store
-* Citizen profile
-* Leaderboard
-* Admin dashboard
-* Report management
-* Reward management
-
-Example:
-
-```markdown
-![Safa Sahar Dashboard](./screenshots/dashboard.png)
-```
-
----
-
 # 🌱 Why Safa Sahar?
 
 Safa Sahar is more than a CRUD application.
