@@ -62,11 +62,30 @@ Built as a full-stack MERN application with a focus on real-world impact for Nep
 
 ### 1. Clone the repository
 
-git clone https://github.com/sushantrana1/Safa_Sahar_Project.git
-cd Safa_Sahar_Project
+- git clone https://github.com/sushantrana1/Safa_Sahar_Project.git
+- cd Safa_Sahar_Project
 
 --- 
 ### 2. Backend setup
 
-cd backend
-npm install
+- cd backend
+- npm install
+
+## Create backend/.env:
+
+- PORT=5000
+- NODE_ENV=development
+- MONGO_URI=mongodb://127.0.0.1:27017/safa-sahar
+- JWT_SECRET=your_dev_secret_here
+- CLOUDINARY_CLOUD_NAME=your_cloud_name
+- CLOUDINARY_API_KEY=your_api_key
+- CLOUDINARY_API_SECRET=your_api_secret
+- FRONTEND_URL=http://localhost:5173
+
+---
+
+### 3. Frontend setup
+
+-cd ../frontend
+- npm install
+- npm run dev
