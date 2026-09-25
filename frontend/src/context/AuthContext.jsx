@@ -7,7 +7,21 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // On mount: if token exists, fetch current user
+  const refreshUser = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+    try {
+      const { data } = await api.get("/auth/me");
+      setUser(data.user);
+      return data.user;
+    } catch {
+      localStorage.removeItem("token");
+      setUser(null);
+      return null;
+    }
+  };
+
+  // Bootstrap on mount
   useEffect(() => {
     const bootstrap = async () => {
       const token = localStorage.getItem("token");
@@ -15,16 +29,23 @@ export function AuthProvider({ children }) {
         setLoading(false);
         return;
       }
-      try {
-        const { data } = await api.get("/auth/me");
-        setUser(data.user);
-      } catch {
-        localStorage.removeItem("token");
-      } finally {
-        setLoading(false);
-      }
+      await refreshUser();
+      setLoading(false);
     };
     bootstrap();
+  }, []);
+
+  // Refresh when the tab regains focus
+  useEffect(() => {
+    const onFocus = () => refreshUser();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
+  // Refresh every 60s
+  useEffect(() => {
+    const id = setInterval(refreshUser, 60000);
+    return () => clearInterval(id);
   }, []);
 
   const login = async (email, password) => {
@@ -48,7 +69,15 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, setUser, loading, login, register, logout }}
+      value={{
+        user,
+        setUser,
+        loading,
+        login,
+        register,
+        logout,
+        refreshUser,
+      }}
     >
       {children}
     </AuthContext.Provider>
